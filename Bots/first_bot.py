@@ -8,7 +8,7 @@ Created on Thu Sep 20 19:54:58 2018
 import sc2
 from sc2 import run_game, maps, Race, Difficulty
 from sc2.player import Bot, Computer
-from sc2.constants import NEXUS, PROBE, PYLON, ASSIMILATOR
+from sc2.constants import NEXUS, PROBE, PYLON, ASSIMILATOR, GATEWAY, CYBERNETICSCORE
 
 
 class LasekBot(sc2.BotAI):
@@ -20,6 +20,11 @@ class LasekBot(sc2.BotAI):
         await self.build_pylons()
         await self.build_assimilators()
         await self.expand()
+        await self.build_gate()
+        await self.build_cybernetics_core()
+        # await self.build_robotics_facility()
+        # await self.build_robotics_bay()
+        # await self.create_stalker()
 
     ##################################################
     ############End of game single step###############
@@ -31,8 +36,14 @@ class LasekBot(sc2.BotAI):
                 await self.do(worker.attack(self.enemy_start_locations[0]))
             return
 
+    # async def build_workers(self):
+    #     for nexus in self.units(NEXUS).ready.noqueue:
+    #         if self.can_afford(PROBE) and self.workers.amount < self.units(NEXUS).amount*16:
+    #             await self.do(nexus.train(PROBE))
+
     async def build_workers(self):
-        for nexus in self.units(NEXUS).ready.noqueue:
+        nexus = self.units(NEXUS).ready.random
+        if self.workers.amount < self.units(NEXUS).amount * 19 and nexus.noqueue:
             if self.can_afford(PROBE):
                 await self.do(nexus.train(PROBE))
 
@@ -59,6 +70,21 @@ class LasekBot(sc2.BotAI):
     async def expand(self):
         if self.units(NEXUS).amount < 2 and self.can_afford(NEXUS):
             await self.expand_now()
+
+    async def build_gate(self):
+        if self.units(PYLON).ready.exists:
+            pylon = self.units(PYLON).ready.random
+            if not self.units(GATEWAY).exists:
+                if self.can_afford(GATEWAY) and not self.already_pending(GATEWAY):
+                    await self.build(GATEWAY, near=pylon.position.towards(self.game_info.map_center,3))
+
+    async def build_cybernetics_core(self):
+        if self.units(PYLON).ready.exists:
+            pylon = self.units(PYLON).ready.random
+            if self.units(GATEWAY).ready.exists:
+                if not self.units(CYBERNETICSCORE).exists:
+                    if self.can_afford(CYBERNETICSCORE) and not self.already_pending(CYBERNETICSCORE):
+                        await self.build(CYBERNETICSCORE, near=pylon.position.towards(self.game_info.map_center,5))
 
 
 run_game(maps.get("AbyssalReefLE"), [
