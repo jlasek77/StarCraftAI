@@ -4,11 +4,14 @@ Created on Thu Sep 20 19:54:58 2018
 
 @author: jlasek
 """
+from typing import List
 
 import sc2
 from sc2 import run_game, maps, Race, Difficulty
+from sc2.ids.ability_id import AbilityId
 from sc2.player import Bot, Computer
-from sc2.constants import NEXUS, PROBE, PYLON, ASSIMILATOR, GATEWAY, CYBERNETICSCORE
+from sc2.constants import NEXUS, PROBE, PYLON, ASSIMILATOR, GATEWAY, CYBERNETICSCORE, ROBOTICSFACILITY, ROBOTICSBAY, \
+    STALKER, COLOSSUS, RESEARCH_EXTENDEDTHERMALLANCE, FORGE, FORGERESEARCH_PROTOSSGROUNDWEAPONSLEVEL1
 
 
 class LasekBot(sc2.BotAI):
@@ -22,12 +25,16 @@ class LasekBot(sc2.BotAI):
         await self.expand()
         await self.build_gate()
         await self.build_cybernetics_core()
-        # await self.build_robotics_facility()
-        # await self.build_robotics_bay()
-        # await self.create_stalker()
+        await self.build_robotics_facility()
+        await self.build_robotics_bay()
+        await self.create_stalker()
+        await self.create_colossus()
+        await self.updgrade_robotics_bay()
+        await self.create_more_gates()
+        await self.build_and_upgrade_forge()
 
     ##################################################
-    ############End of game single step###############
+    ########### End of game single step ##############
     ##################################################
 
     async def attack_if_no_nexus(self):
@@ -43,7 +50,7 @@ class LasekBot(sc2.BotAI):
 
     async def build_workers(self):
         nexus = self.units(NEXUS).ready.random
-        if self.workers.amount < self.units(NEXUS).amount * 19 and nexus.noqueue:
+        if self.workers.amount < self.units(NEXUS).amount * 20 and nexus.noqueue:
             if self.can_afford(PROBE):
                 await self.do(nexus.train(PROBE))
 
@@ -76,7 +83,7 @@ class LasekBot(sc2.BotAI):
             pylon = self.units(PYLON).ready.random
             if not self.units(GATEWAY).exists:
                 if self.can_afford(GATEWAY) and not self.already_pending(GATEWAY):
-                    await self.build(GATEWAY, near=pylon.position.towards(self.game_info.map_center,3))
+                    await self.build(GATEWAY, near=pylon.position.towards(self.game_info.map_center, 3))
 
     async def build_cybernetics_core(self):
         if self.units(PYLON).ready.exists:
@@ -84,7 +91,62 @@ class LasekBot(sc2.BotAI):
             if self.units(GATEWAY).ready.exists:
                 if not self.units(CYBERNETICSCORE).exists:
                     if self.can_afford(CYBERNETICSCORE) and not self.already_pending(CYBERNETICSCORE):
-                        await self.build(CYBERNETICSCORE, near=pylon.position.towards(self.game_info.map_center,5))
+                        await self.build(CYBERNETICSCORE, near=pylon.position.towards(self.game_info.map_center, 5))
+
+    async def build_robotics_facility(self):
+        if self.units(PYLON).ready.exists:
+            pylon = self.units(PYLON).ready.random
+            if self.units(GATEWAY).ready.exists and self.units(CYBERNETICSCORE).ready.exists:
+                if not self.units(ROBOTICSFACILITY).exists:
+                    if self.can_afford(ROBOTICSFACILITY) and not self.already_pending(ROBOTICSFACILITY):
+                        await self.build(ROBOTICSFACILITY, near=pylon.position.towards(self.game_info.map_center, 6))
+
+    async def build_robotics_bay(self):
+        if self.units(PYLON).ready.exists:
+            pylon = self.units(PYLON).ready.random
+            if self.units(ROBOTICSFACILITY).exists and self.can_afford(ROBOTICSBAY) and not self.already_pending(
+                    ROBOTICSBAY) and self.units(ROBOTICSBAY).amount < 1:
+                await  self.build(ROBOTICSBAY, near=pylon.position.towards(self.game_info.map_center, 7))
+
+    async def create_stalker(self):
+        for gw in self.units(GATEWAY).ready.noqueue:
+            if self.can_afford(STALKER) and self.supply_left > 0:
+                await self.do(gw.train(STALKER))
+
+    async def create_colossus(self):
+        for rb in self.units(ROBOTICSFACILITY).ready.noqueue:
+            if self.can_afford(COLOSSUS) and self.supply_left > 0:
+                await self.do(rb.train(COLOSSUS))
+
+    async def updgrade_robotics_bay(self):
+        if self.units(ROBOTICSBAY).ready.exists:
+            building = self.units(ROBOTICSBAY).ready.first
+            # buildings = self.units(ROBOTICSBAY).ready.
+            abilities = await self.get_available_abilities(building)
+            if RESEARCH_EXTENDEDTHERMALLANCE in abilities:
+                if self.can_afford(RESEARCH_EXTENDEDTHERMALLANCE) and building.noqueue:
+                    await self.do(building(RESEARCH_EXTENDEDTHERMALLANCE))
+
+    async def create_more_gates(self):
+        if self.units(GATEWAY).ready.exists and self.minerals > 1000 and self.units(GATEWAY).amount < 4:
+            pylon = self.units(PYLON).ready.random
+            if not self.already_pending(GATEWAY):
+                await self.build(GATEWAY, near=pylon.position.towards(self.game_info.map_center, 3))
+
+    async def build_and_upgrade_forge(self):
+        if self.units(PYLON).ready.exists:
+            pylon = self.units(PYLON).ready.random
+            if not self.units(FORGE).exists:
+                if self.can_afford(FORGE) and not self.already_pending(FORGE) and self.minerals > 1000:
+                    await self.build(FORGE, near=pylon.position.towards(self.game_info.map_center, 3))
+        if self.units(FORGE).ready.exists:
+            building = self.units(FORGE).ready.first
+            abilities = await self.get_available_abilities(building)
+            for ability in abilities:
+                if self.can_afford(ability) and building.noqueue:
+                    await self.do(building(ability))
+
+
 
 
 run_game(maps.get("AbyssalReefLE"), [
