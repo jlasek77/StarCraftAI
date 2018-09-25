@@ -4,6 +4,7 @@ Created on Thu Sep 20 19:54:58 2018
 
 @author: jlasek
 """
+import random
 from typing import List
 
 import sc2
@@ -32,6 +33,7 @@ class LasekBot(sc2.BotAI):
         await self.updgrade_robotics_bay()
         await self.create_more_gates()
         await self.build_and_upgrade_forge()
+        await self.attack()
 
     ##################################################
     ########### End of game single step ##############
@@ -121,14 +123,13 @@ class LasekBot(sc2.BotAI):
     async def updgrade_robotics_bay(self):
         if self.units(ROBOTICSBAY).ready.exists:
             building = self.units(ROBOTICSBAY).ready.first
-            # buildings = self.units(ROBOTICSBAY).ready.
             abilities = await self.get_available_abilities(building)
             if RESEARCH_EXTENDEDTHERMALLANCE in abilities:
                 if self.can_afford(RESEARCH_EXTENDEDTHERMALLANCE) and building.noqueue:
                     await self.do(building(RESEARCH_EXTENDEDTHERMALLANCE))
 
     async def create_more_gates(self):
-        if self.units(GATEWAY).ready.exists and self.minerals > 1000 and self.units(GATEWAY).amount < 4:
+        if self.units(GATEWAY).ready.exists and self.minerals > 1000 and self.units(GATEWAY).amount < 5:
             pylon = self.units(PYLON).ready.random
             if not self.already_pending(GATEWAY):
                 await self.build(GATEWAY, near=pylon.position.towards(self.game_info.map_center, 3))
@@ -146,10 +147,28 @@ class LasekBot(sc2.BotAI):
                 if self.can_afford(ability) and building.noqueue:
                     await self.do(building(ability))
 
+    def find_target(self, state):
+        if len(self.known_enemy_units) > 0:
+            return random.choice(self.known_enemy_units)
+        elif len(self.known_enemy_structures) > 0:
+            return random.choice(self.known_enemy_structures)
+        else:
+            return self.enemy_start_locations[0]
 
+    async def attack(self):
+        if self.units(STALKER).amount > 20:
+            for s in self.units(STALKER).idle:
+                await self.do(s.attack(self.find_target(self.state)))
+        if self.units(COLOSSUS).amount > 4:
+            for c in self.units(COLOSSUS).idle:
+                await self.do(c.attack(self.find_target(self.state)))
+        elif self.units(STALKER).amount > 3:
+            if len(self.known_enemy_units) > 0:
+                for s in self.units(STALKER).idle:
+                    await self.do(s.attack(random.choice(self.known_enemy_units)))
 
 
 run_game(maps.get("AbyssalReefLE"), [
     Bot(Race.Protoss, LasekBot()),
-    Computer(Race.Terran, Difficulty.Easy)
-], realtime=True)
+    Computer(Race.Terran, Difficulty.Medium)
+], realtime=False)
